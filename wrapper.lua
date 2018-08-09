@@ -26,33 +26,80 @@
 --     CryptDB.disconnect(proxy.connection.client.src.name)
 -- end
 
-package.cpath = "/home/taeyun/Desktop/tensor1_new/tensor2lib.so"
+-- package.cpath = "/home/taeyun/Desktop/tensor1_new/tensor2lib.so"
+
+package.cpath = "/home/taeyun/Desktop/tensor1_new/tfhelib.so"
+
 require "mylib"
 
 function string.starts(String,Start)
     return string.sub(String,1,string.len(Start))==Start
 end
 
+-- see if the file exists
+function file_exists(file)
+    local f = io.open(file, "rb")
+    if f then f:close() end
+    return f ~= nil
+  end
+  
+-- get all lines from a file, returns an empty 
+-- list/table if the file does not exist
+function lines_from(file)
+    if not file_exists(file) then return {} end
+    lines = {}
+    for line in io.lines(file) do 
+        lines[#lines + 1] = line
+    end
+    return lines
+end
+
+-- syntax:
+-- insert into ciphertext values(int);
+-- int will be encrypted and stored into ciphertext16bit_biti tables
 function insert_handler(query)
     -- first check if syntax, number of columns, etc are correct
     
-    for i=0,15,1
-        do
-        modifiedquery = "insert into ciphertext16bit_bit" .. i .. " values("
+    -- temp = split(query, "(")
+    -- plaintext = split(temp[1], ")")[0]
+
+    plaintext = string.match(query, "%d+")
+
+    print("plaintext = " .. plaintext)
+    
+    mylib.HOMencrypt(plaintext)
+    
+    file = '/home/taeyun/Desktop/mysqlproxy/encryptedInteger.txt'
+    lines = lines_from(file)
+
+    -- print all line numbers and their contents
+    for k,v in pairs(lines) do
+        print('line[' .. k .. ']', v)
+    end
+
+    -- rv = {mylib.HOMencrypt1(plaintext)}
+    -- for i,val in ipairs(rv) do
+    --     print(i,val)
+    -- end
+
+
+    -- for i=0,15,1
+    --     do
+    --     modifiedquery = "insert into ciphertext16bit_bit" .. i .. " values("
         
-        -- TODO: replace 500 with n
-        for j = 0,499,1
-        do
-            modifiedquery = modifiedquery .. tostring(j) .. ", "
-            if j == 499 then
-                modifiedquery = modifiedquery .. "3, " .. "3)" 
+    --     -- TODO: replace 500 with n
+    --     for j = 0,499,1
+    --     do
+    --         modifiedquery = modifiedquery .. tostring(j) .. ", "
+    --         if j == 499 then
+    --             modifiedquery = modifiedquery .. "3, " .. "3)" 
             
-            end
-        end
-        print("modifiedquery = " .. modifiedquery)
-        proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
-        return proxy.PROXY_SEND_QUERY
-    end 
+    --         end
+    --     end
+    --     print("modifiedquery = " .. modifiedquery)
+    --     proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+    --     return proxy.PROXY_SEND_QUERY
+    -- end 
 end
 
 function size_handler(query)
@@ -62,6 +109,18 @@ function size_handler(query)
     proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
     return proxy.PROXY_SEND_QUERY
     
+end
+
+function drop_handler(query)
+    for i=0,15,1
+        do
+        modifiedquery = "drop table ciphertext16bit_bit" .. i
+
+        print("modifiedquery = " .. modifiedquery)
+        proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+    end            
+
+    return proxy.PROXY_SEND_QUERY
 end
 
 function read_query(packet)
@@ -83,11 +142,15 @@ function read_query(packet)
             for i=0,15,1
                 do
                 modifiedquery = "create table ciphertext16bit_bit" .. i .. " ("
-                modifiedquery = modifiedquery .. tostring(j) .. "th_a int,"
+                -- whose fingerprint vector this is
+                modifiedquery = modifiedquery .. "id int, "
+
+                -- which integer it is in the fingerprint vector
+                modifiedquery = modifiedquery .. "integerorder int, "
                 -- TODO: replace 500 with n
                 for j = 0,499,1
                 do
-                    modifiedquery = modifiedquery .. tostring(j) .. "th_a int,"
+                    modifiedquery = modifiedquery .. tostring(j) .. "th_a int, "
                     if j == 499 then
                         modifiedquery = modifiedquery .. "b_ int, " .. "variance double)" 
                     
@@ -97,59 +160,16 @@ function read_query(packet)
                 proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
             end            
 
-
-
-            -- modifiedquery = "create table ciphertext16bit1 (a int, b int)"
-
-            -- print("modifiedquery = " .. modifiedquery)
-            -- proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
-
-
-
-
-            -- for i = 0,1,1
-            -- do
-            --     -- TODO: replace 500 with n
-            --     for j = 0,499,1
-            --     do
-            --         modifiedquery = modifiedquery .. i .. "th_bit_" .. j .. "th_a int,"
-            --         if j == 499 then
-            --             if i == 1 then
-            --                 modifiedquery = modifiedquery .. i .. "th_bit_b_ int, " .. i .. "th_bit_variance double)" 
-            --             else
-            --                 modifiedquery = modifiedquery .. i .. "th_bit_b_ int, " .. i .. "th_bit_variance double,"
-            --             end
-            --         end
-            --     end
-            -- end
-            -- print("modifiedquery = " .. modifiedquery)
-            -- proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
-
-
-
-
-
-            -- modifiedquery = "create table ciphertext16bit_2 ("
-            
-            -- for i = 8,15,1
-            -- do
-            --     -- TODO: replace 500 with n
-            --     for j = 0,499,1
-            --     do
-            --         modifiedquery = modifiedquery .. "a_" .. i .. "th_bit_" .. j .. " int,"
-            --     end
-            --     if i == 15 then
-            --         modifiedquery = modifiedquery .. "b_" .. i .. "th_bit int, " .. "variance_" .. i .. "th_bit double)" 
-            --     else
-            --         modifiedquery = modifiedquery .. "b_" .. i .. "th_bit int, " .. "variance_" .. i .. "th_bit double," 
-            --     end
-            -- end
-            -- print("modifiedquery = " .. modifiedquery)
-            -- proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
-
             return proxy.PROXY_SEND_QUERY
         end
 
+        if query == "drop table ciphertext16bit" then
+            return drop_handler(query)
+        end
+
+        -- syntax:
+        -- insert into ciphertext values(int);
+        -- int will be encrypted and stored into ciphertext16bit_biti tables
         if string.starts(query, "insert into ciphertext ") then
             return insert_handler(query)    
         end 

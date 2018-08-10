@@ -55,51 +55,64 @@ function lines_from(file)
 end
 
 -- syntax:
--- insert into ciphertext values(int);
+-- id: id of the individual, integerorder: which integer in the fingerprintvector, value: actual value to be encrypted
+-- insert into ciphertext values(id int, integerorder int, value int);
 -- int will be encrypted and stored into ciphertext16bit_biti tables
 function insert_handler(query)
     -- first check if syntax, number of columns, etc are correct
-    
-    -- temp = split(query, "(")
-    -- plaintext = split(temp[1], ")")[0]
 
-    plaintext = string.match(query, "%d+")
+    local array = {}
+    for capture in string.gmatch(query, "%d+") do
+        table.insert(array, capture)
+    end
 
-    print("plaintext = " .. plaintext)
+    id = array[1]
+    integerorder = array[2]
+    value = array[3]
+
+   
+    -- plaintext = string.match(query, "%d+")
+
+    -- print("plaintext = " .. plaintext)
     
-    mylib.HOMencrypt(plaintext)
+    mylib.HOMencrypt(value)
     
     file = '/home/taeyun/Desktop/mysqlproxy/encryptedInteger.txt'
     lines = lines_from(file)
 
-    -- print all line numbers and their contents
-    for k,v in pairs(lines) do
-        print('line[' .. k .. ']', v)
-    end
-
-    -- rv = {mylib.HOMencrypt1(plaintext)}
-    -- for i,val in ipairs(rv) do
-    --     print(i,val)
+    -- -- print all line numbers and their contents
+    -- for k,v in pairs(lines) do
+    --     print('line[' .. k .. ']', v)
     -- end
 
+    linenumber = 1
 
-    -- for i=0,15,1
-    --     do
-    --     modifiedquery = "insert into ciphertext16bit_bit" .. i .. " values("
-        
-    --     -- TODO: replace 500 with n
-    --     for j = 0,499,1
-    --     do
-    --         modifiedquery = modifiedquery .. tostring(j) .. ", "
-    --         if j == 499 then
-    --             modifiedquery = modifiedquery .. "3, " .. "3)" 
+    for i=0,15,1
+        do
+        modifiedquery = "insert into ciphertext16bit_bit" .. i .. " values("
+        -- whose fingerprint vector this is
+        modifiedquery = modifiedquery .. id .. ", "
+
+        -- which integer it is in the fingerprint vector
+        modifiedquery = modifiedquery .. integerorder .. ", "
+        -- TODO: replace 500 with n
+        for j = 0,501,1
+        do
+            if j == 501 then
+                modifiedquery = modifiedquery .. lines[linenumber] .. ")"
+                linenumber = linenumber + 1
+                break
+            end
+            modifiedquery = modifiedquery .. lines[linenumber] .. ", "
+            linenumber = linenumber + 1
             
-    --         end
-    --     end
-    --     print("modifiedquery = " .. modifiedquery)
-    --     proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
-    --     return proxy.PROXY_SEND_QUERY
-    -- end 
+        end
+        print("modifiedquery = " .. modifiedquery)
+        proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+    end            
+
+    return proxy.PROXY_SEND_QUERY
+
 end
 
 function size_handler(query)
@@ -119,6 +132,35 @@ function drop_handler(query)
         print("modifiedquery = " .. modifiedquery)
         proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
     end            
+
+    return proxy.PROXY_SEND_QUERY
+end
+
+-- asssumes the first field given in where clause is id, and the second is integerorder
+function select_handler(query)
+    local array = {}
+    for capture in string.gmatch(query, "%d+") do
+        table.insert(array, capture)
+    end
+
+    id = array[1]
+    integerorder = array[2]
+
+    for i=0,15,1
+        do
+        modifiedquery = "select * from ciphertext16bit_bit" .. i .. " where id = " .. id .. " and integerorder = " .. integerorder 
+
+        print("modifiedquery = " .. modifiedquery)
+        proxy.queries:append(i, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true})
+    end    
+
+    -- for i=0,15,1
+    --     do
+    --     modifiedquery = "drop table ciphertext16bit_bit" .. i
+
+    --     print("modifiedquery = " .. modifiedquery)
+    --     proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+    -- end            
 
     return proxy.PROXY_SEND_QUERY
 end
@@ -161,29 +203,49 @@ function read_query(packet)
             end            
 
             return proxy.PROXY_SEND_QUERY
-        end
+        
 
-        if query == "drop table ciphertext16bit" then
+        elseif query == "drop table ciphertext16bit" then
             return drop_handler(query)
-        end
+    
 
         -- syntax:
         -- insert into ciphertext values(int);
         -- int will be encrypted and stored into ciphertext16bit_biti tables
-        if string.starts(query, "insert into ciphertext ") then
+        elseif string.starts(query, "insert into ciphertext ") then
             return insert_handler(query)    
-        end 
+        
+        -- elseif (string.starts(query, "select ") and string.find(query, "from ciphertext16bit"))then
+        --     return select_handler(query)    
 
-        if string.starts(query, "show tablesizes") then
+        elseif string.starts(query, "select * from ciphertext where ") then
+            return select_handler(query) 
+
+        elseif string.starts(query, "show tablesizes") then
             return size_handler(query)    
-        end 
+        end
         
     end
 end
 
--- function read_query_result(inj)
---     print("read_query_result: " .. inj)
--- end
+function read_query_result(inj)
+    -- print("read_query_result: " .. inj)
+    print("query-time: " .. (inj.query_time / 1000) .. "ms")
+    print("response-time: " .. (inj.response_time / 1000) .. "ms")
+    print("original request query = " .. inj.query:sub(2))
+    print("id = " .. inj.id)
+    file = io.open("/home/taeyun/Desktop/mysqlproxy/datatobedecrypted" .. inj.id .. ".txt", "w")
+    for rows in inj.resultset.rows do
+        --TODO: fix 502 to n+2
+        for i = 3,504,1 do
+            file:write(rows[i] .. "\n")
+            print("injected query returned: " .. rows[i])
+        end
+    end
+    file:close()
+    decrypted = mylib.HOMdecrypt()
+    print("decrypted value = " .. decrypted)
+end
 
 
 -- function read_query(packet)

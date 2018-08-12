@@ -57,7 +57,7 @@ end
 -- syntax:
 -- id: id of the individual, integerorder: which integer in the fingerprintvector, value: actual value to be encrypted
 -- insert into ciphertext values(id int, integerorder int, value int);
--- int will be encrypted and stored into ciphertext16bit_biti tables
+-- int will be encrypted and stored into ciphertext_biti tables
 function insert_handler(query)
     -- first check if syntax, number of columns, etc are correct
 
@@ -89,7 +89,7 @@ function insert_handler(query)
 
     for i=0,15,1
         do
-        modifiedquery = "insert into ciphertext16bit_bit" .. i .. " values("
+        modifiedquery = "insert into ciphertext_bit" .. i .. " values("
         -- whose fingerprint vector this is
         modifiedquery = modifiedquery .. id .. ", "
 
@@ -108,7 +108,7 @@ function insert_handler(query)
             
         end
         print("modifiedquery = " .. modifiedquery)
-        proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+        proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
     end            
 
     return proxy.PROXY_SEND_QUERY
@@ -119,7 +119,7 @@ function size_handler(query)
     -- first check if syntax, number of columns, etc are correct
     
     modifiedquery = "SELECT table_schema as `Database`, table_name AS `Table`, round(((data_length + index_length) / 1024 / 1024), 2) `Size in MB` FROM information_schema.TABLES ORDER BY (data_length + index_length) DESC"
-    proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+    proxy.queries:append(4, string.char(proxy.COM_QUERY) .. modifiedquery);
     return proxy.PROXY_SEND_QUERY
     
 end
@@ -127,10 +127,10 @@ end
 function drop_handler(query)
     for i=0,15,1
         do
-        modifiedquery = "drop table ciphertext16bit_bit" .. i
+        modifiedquery = "drop table ciphertext_bit" .. i
 
         print("modifiedquery = " .. modifiedquery)
-        proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+        proxy.queries:append(2, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
     end            
 
     return proxy.PROXY_SEND_QUERY
@@ -144,23 +144,25 @@ function select_handler(query)
     end
 
     id = array[1]
+    print("user id the user input = " .. id)
     integerorder = array[2]
 
     for i=0,15,1
         do
-        modifiedquery = "select * from ciphertext16bit_bit" .. i .. " where id = " .. id .. " and integerorder = " .. integerorder 
+        modifiedquery = "select * from ciphertext_bit" .. i .. " where id = " .. id .. " and integerorder = " .. integerorder 
 
         print("modifiedquery = " .. modifiedquery)
-        proxy.queries:append(i, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true})
+        proxy.queries:append((i+5), string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true})
     end    
 
     -- for i=0,15,1
     --     do
-    --     modifiedquery = "drop table ciphertext16bit_bit" .. i
+    --     modifiedquery = "drop table ciphertext_bit" .. i
 
     --     print("modifiedquery = " .. modifiedquery)
     --     proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
     -- end            
+    -- print("queries length = " .. proxy.queries:len())
 
     return proxy.PROXY_SEND_QUERY
 end
@@ -176,14 +178,14 @@ function read_query(packet)
         -- creates a table to store encrypted values
         -- this ciphertext contains 500 integer columns to represent a array
         --  1 int column to represent b 1 double column to represent current_variance
-        if query == "create table ciphertext16bit" then
-            print("creating a table ciphertext16bit...")
+        if query == "create table ciphertext" then
+            print("creating a table ciphertext...")
 
 
 
             for i=0,15,1
                 do
-                modifiedquery = "create table ciphertext16bit_bit" .. i .. " ("
+                modifiedquery = "create table ciphertext_bit" .. i .. " ("
                 -- whose fingerprint vector this is
                 modifiedquery = modifiedquery .. "id int, "
 
@@ -199,42 +201,52 @@ function read_query(packet)
                     end
                 end
                 print("modifiedquery = " .. modifiedquery)
-                proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+                proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
             end            
 
             return proxy.PROXY_SEND_QUERY
         
 
-        elseif query == "drop table ciphertext16bit" then
+        elseif query == "drop table ciphertext" then
             return drop_handler(query)
     
 
         -- syntax:
         -- insert into ciphertext values(int);
-        -- int will be encrypted and stored into ciphertext16bit_biti tables
+        -- int will be encrypted and stored into ciphertext_biti tables
         elseif string.starts(query, "insert into ciphertext ") then
             return insert_handler(query)    
         
-        -- elseif (string.starts(query, "select ") and string.find(query, "from ciphertext16bit"))then
+        -- elseif (string.starts(query, "select ") and string.find(query, "from ciphertext"))then
         --     return select_handler(query)    
-
-        elseif string.starts(query, "select * from ciphertext where ") then
-            return select_handler(query) 
 
         elseif string.starts(query, "show tablesizes") then
             return size_handler(query)    
         end
+
+        elseif string.starts(query, "select * from ciphertext where ") then
+            return select_handler(query) 
         
     end
 end
 
 function read_query_result(inj)
     -- print("read_query_result: " .. inj)
+    originalquery = inj.query:sub(2)
+    print("inj.id = " .. inj.id)
+    -- if not string.starts(originalquery, "select * from ciphertext where ") then
+    if inj.id <= 4 then
+        print("inj.id = " .. inj.id)
+        print("this was not a select query")
+        proxy.response.type = proxy.MYSQLD_PACKET_OK
+        return proxy.PROXY_SEND_RESULT
+        -- return proxy.PROXY_IGNORE_RESULT
+    end
     print("query-time: " .. (inj.query_time / 1000) .. "ms")
     print("response-time: " .. (inj.response_time / 1000) .. "ms")
-    print("original request query = " .. inj.query:sub(2))
+    print("original request query = " .. originalquery)
     print("id = " .. inj.id)
-    file = io.open("/home/taeyun/Desktop/mysqlproxy/datatobedecrypted" .. inj.id .. ".txt", "w")
+    file = io.open("/home/taeyun/Desktop/mysqlproxy/datatobedecrypted" .. (inj.id-5) .. ".txt", "w")
     for rows in inj.resultset.rows do
         --TODO: fix 502 to n+2
         for i = 3,504,1 do
@@ -244,7 +256,24 @@ function read_query_result(inj)
     end
     file:close()
     decrypted = mylib.HOMdecrypt()
-    print("decrypted value = " .. decrypted)
+    -- for i,val in ipairs(decrypted) do
+    --     print(i,val)
+    -- end
+    if (decrypted == nil) then
+        print("decrypted value was nil")
+    else
+        print("decrypted value = " .. decrypted)
+        proxy.response.resultset = {
+            fields = {
+                { type = proxy.MYSQL_TYPE_INT24, name = "decrypted", },
+            },
+            rows = {
+                { decrypted }
+            }
+        }
+    end
+
+    return proxy.PROXY_SEND_RESULT
 end
 
 

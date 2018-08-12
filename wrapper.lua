@@ -70,6 +70,7 @@ function insert_handler(query)
     integerorder = array[2]
     value = array[3]
 
+    print("usedid = " .. id)
    
     -- plaintext = string.match(query, "%d+")
 
@@ -107,7 +108,7 @@ function insert_handler(query)
             linenumber = linenumber + 1
             
         end
-        print("modifiedquery = " .. modifiedquery)
+        -- print("modifiedquery = " .. modifiedquery)
         proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
     end            
 
@@ -129,7 +130,7 @@ function drop_handler(query)
         do
         modifiedquery = "drop table ciphertext_bit" .. i
 
-        print("modifiedquery = " .. modifiedquery)
+        -- print("modifiedquery = " .. modifiedquery)
         proxy.queries:append(2, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
     end            
 
@@ -151,7 +152,7 @@ function select_handler(query)
         do
         modifiedquery = "select * from ciphertext_bit" .. i .. " where id = " .. id .. " and integerorder = " .. integerorder 
 
-        print("modifiedquery = " .. modifiedquery)
+        -- print("modifiedquery = " .. modifiedquery)
         proxy.queries:append((i+5), string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true})
     end    
 
@@ -166,6 +167,28 @@ function select_handler(query)
 
     return proxy.PROXY_SEND_QUERY
 end
+
+
+function test_handler(query)
+   
+    modifiedquery = "select * from ciphertext_bit0" 
+
+    -- print("modifiedquery = " .. modifiedquery)
+    proxy.queries:append(21, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true})
+       
+
+    -- for i=0,15,1
+    --     do
+    --     modifiedquery = "drop table ciphertext_bit" .. i
+
+    --     print("modifiedquery = " .. modifiedquery)
+    --     proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery);
+    -- end            
+    -- print("queries length = " .. proxy.queries:len())
+
+    return proxy.PROXY_SEND_QUERY
+end
+
 
 function read_query(packet)
     -- print("packet = " .. packet)
@@ -200,7 +223,7 @@ function read_query(packet)
                     
                     end
                 end
-                print("modifiedquery = " .. modifiedquery)
+                -- print("modifiedquery = " .. modifiedquery)
                 proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
             end            
 
@@ -222,18 +245,35 @@ function read_query(packet)
 
         elseif string.starts(query, "show tablesizes") then
             return size_handler(query)    
-        end
+
+        elseif string.starts(query, "test readqueryresult") then
+            return test_handler(query)    
 
         elseif string.starts(query, "select * from ciphertext where ") then
             return select_handler(query) 
-        
+        end
     end
 end
 
 function read_query_result(inj)
+
+    -- --
+    -- proxy.response.type = proxy.MYSQLD_PACKET_OK
+    -- proxy.response.resultset = {
+    --     fields = {
+    --         { type = proxy.MYSQL_TYPE_INT24, name = "decrypted", },
+    --     },
+    --     rows = {
+    --         { 0 }
+    --     }
+    -- }
+    -- return proxy.PROXY_SEND_RESULT
+    -- --
+
+
     -- print("read_query_result: " .. inj)
     originalquery = inj.query:sub(2)
-    print("inj.id = " .. inj.id)
+    -- print("inj.id = " .. inj.id)
     -- if not string.starts(originalquery, "select * from ciphertext where ") then
     if inj.id <= 4 then
         print("inj.id = " .. inj.id)
@@ -242,16 +282,22 @@ function read_query_result(inj)
         return proxy.PROXY_SEND_RESULT
         -- return proxy.PROXY_IGNORE_RESULT
     end
-    print("query-time: " .. (inj.query_time / 1000) .. "ms")
-    print("response-time: " .. (inj.response_time / 1000) .. "ms")
-    print("original request query = " .. originalquery)
-    print("id = " .. inj.id)
+    -- print("query-time: " .. (inj.query_time / 1000) .. "ms")
+    -- print("response-time: " .. (inj.response_time / 1000) .. "ms")
+    -- print("original request query = " .. originalquery)
+    -- print("id = " .. inj.id)
+
+    -- --delete any existing datatobedecrypted files
+    -- --TODO: fix 0 and 15 to some expression that involves numberofbits
+    -- for i=0,15,1 do
+    --     os.remove("/home/taeyun/Desktop/mysqlproxy/datatobedecrypted" .. i .. ".txt")
+    -- end
     file = io.open("/home/taeyun/Desktop/mysqlproxy/datatobedecrypted" .. (inj.id-5) .. ".txt", "w")
     for rows in inj.resultset.rows do
         --TODO: fix 502 to n+2
         for i = 3,504,1 do
             file:write(rows[i] .. "\n")
-            print("injected query returned: " .. rows[i])
+            -- print("injected query returned: " .. rows[i])
         end
     end
     file:close()
@@ -260,9 +306,19 @@ function read_query_result(inj)
     --     print(i,val)
     -- end
     if (decrypted == nil) then
-        print("decrypted value was nil")
+        return proxy.PROXY_IGNORE_RESULT
+        -- print("decrypted value was nil")
+        -- proxy.response.type = proxy.MYSQLD_PACKET_ERR
+        -- proxy.response.errmsg = "decrypted value was nil"
     else
         print("decrypted value = " .. decrypted)
+
+        --delete datatobedecrypted files that were created
+        --TODO: fix 0 and 15 to some expression that involves numberofbits
+        for i=0,15,1 do
+            os.remove("/home/taeyun/Desktop/mysqlproxy/datatobedecrypted" .. i .. ".txt")
+        end
+
         proxy.response.resultset = {
             fields = {
                 { type = proxy.MYSQL_TYPE_INT24, name = "decrypted", },
@@ -271,9 +327,13 @@ function read_query_result(inj)
                 { decrypted }
             }
         }
+        proxy.response.type = proxy.MYSQLD_PACKET_OK
+        -- return proxy.PROXY_SEND_RESULT
     end
-
+    -- proxy.response.type = proxy.MYSQLD_PACKET_OK
     return proxy.PROXY_SEND_RESULT
+
+
 end
 
 

@@ -62,7 +62,7 @@ function insert_handler(query)
     -- first check if syntax, number of columns, etc are correct
 
     local array = {}
-    for capture in string.gmatch(query, "%d+") do
+    for capture in string.gmatch(query, "-?%d+") do
         table.insert(array, capture)
     end
 
@@ -111,6 +111,64 @@ function insert_handler(query)
         -- print("modifiedquery = " .. modifiedquery)
         proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
     end            
+
+    return proxy.PROXY_SEND_QUERY
+
+end
+
+function insertfp_handler(query)
+    fpfile = '/home/taeyun/Desktop/mysqlproxy/fingerprints.txt'
+    fplines = lines_from(fpfile)
+
+    -- print all line numbers and their contents
+    for k,v in pairs(fplines) do
+        --TODO: change 17 to some kind of expression
+        remainder = k % 17
+        if remainder == 1 then
+            fpnumber = v 
+            continue
+        elseif remainder == 0 then 
+            integerorder = 15
+        else
+            integerorder = remainder - 2
+        end
+        mylib.HOMencrypt(v)
+    
+        file = '/home/taeyun/Desktop/mysqlproxy/encryptedInteger.txt'
+        lines = lines_from(file)
+
+        -- -- print all line numbers and their contents
+        -- for k,v in pairs(lines) do
+        --     print('line[' .. k .. ']', v)
+        -- end
+
+        linenumber = 1
+
+        for i=0,15,1
+            do
+            modifiedquery = "insert into ciphertext_bit" .. i .. " values("
+            -- whose fingerprint vector this is
+            modifiedquery = modifiedquery .. fpnumber .. ", "
+
+            -- which integer it is in the fingerprint vector
+            modifiedquery = modifiedquery .. integerorder .. ", "
+            -- TODO: replace 500 with n
+            for j = 0,501,1
+            do
+                if j == 501 then
+                    modifiedquery = modifiedquery .. lines[linenumber] .. ")"
+                    linenumber = linenumber + 1
+                    break
+                end
+                modifiedquery = modifiedquery .. lines[linenumber] .. ", "
+                linenumber = linenumber + 1
+                
+            end
+            -- print("modifiedquery = " .. modifiedquery)
+            proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
+        end  
+        -- print('line[' .. k .. ']', v)
+    end
 
     return proxy.PROXY_SEND_QUERY
 
@@ -210,7 +268,7 @@ function read_query(packet)
                 do
                 modifiedquery = "create table ciphertext_bit" .. i .. " ("
                 -- whose fingerprint vector this is
-                modifiedquery = modifiedquery .. "id int, "
+                modifiedquery = modifiedquery .. "fpnumber int, "
 
                 -- which integer it is in the fingerprint vector
                 modifiedquery = modifiedquery .. "integerorder int, "
@@ -247,7 +305,10 @@ function read_query(packet)
             return size_handler(query)    
 
         elseif string.starts(query, "test readqueryresult") then
-            return test_handler(query)    
+            return test_handler(query)   
+            
+        elseif string.starts(query, "insert fingerprints") then
+            return insertfp_handler(query)
 
         elseif string.starts(query, "select * from ciphertext where ") then
             return select_handler(query) 

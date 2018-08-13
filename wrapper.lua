@@ -109,68 +109,91 @@ function insert_handler(query)
             
         end
         -- print("modifiedquery = " .. modifiedquery)
-        proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
+        if i == 15 then
+            proxy.queries:append(-1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+        else
+            proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+        end
+        -- proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
     end            
 
     return proxy.PROXY_SEND_QUERY
 
 end
 
+-- extractedfpvectors.txt has a format of fpnumber; intva
 function insertfp_handler(query)
-    fpfile = '/home/taeyun/Desktop/mysqlproxy/fingerprints.txt'
+    fpfile = '/home/taeyun/Desktop/mysqlproxy/extractedfpvectors.txt'
     fplines = lines_from(fpfile)
-
+    isfirstloop = 1
+    modifiedquery = ''
     -- print all line numbers and their contents
     for k,v in pairs(fplines) do
+        if (isfirstloop == 0) then
+            if v == 'end'then
+                proxy.queries:append(-1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                return proxy.PROXY_SEND_QUERY
+            else
+                proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+            end
+        end
+        isfirstloop = 0
         --TODO: change 17 to some kind of expression
         remainder = k % 17
         if remainder == 1 then
             fpnumber = v 
-            continue
         elseif remainder == 0 then 
             integerorder = 15
         else
             integerorder = remainder - 2
         end
-        mylib.HOMencrypt(v)
-    
-        file = '/home/taeyun/Desktop/mysqlproxy/encryptedInteger.txt'
-        lines = lines_from(file)
+        if not (remainder == 1) then
+            print('inside if not statement')
+            mylib.HOMencrypt(v)
+        
+            file = '/home/taeyun/Desktop/mysqlproxy/encryptedInteger.txt'
+            lines = lines_from(file)
 
-        -- -- print all line numbers and their contents
-        -- for k,v in pairs(lines) do
-        --     print('line[' .. k .. ']', v)
-        -- end
+            -- -- print all line numbers and their contents
+            -- for k,v in pairs(lines) do
+            --     print('line[' .. k .. ']', v)
+            -- end
 
-        linenumber = 1
+            linenumber = 1
 
-        for i=0,15,1
-            do
-            modifiedquery = "insert into ciphertext_bit" .. i .. " values("
-            -- whose fingerprint vector this is
-            modifiedquery = modifiedquery .. fpnumber .. ", "
+            for i=0,15,1
+                do
+                modifiedquery = "insert into ciphertext_bit" .. i .. " values("
+                -- whose fingerprint vector this is
+                modifiedquery = modifiedquery .. fpnumber .. ", "
 
-            -- which integer it is in the fingerprint vector
-            modifiedquery = modifiedquery .. integerorder .. ", "
-            -- TODO: replace 500 with n
-            for j = 0,501,1
-            do
-                if j == 501 then
-                    modifiedquery = modifiedquery .. lines[linenumber] .. ")"
+                -- which integer it is in the fingerprint vector
+                modifiedquery = modifiedquery .. integerorder .. ", "
+                -- TODO: replace 500 with n
+                for j = 0,501,1
+                do
+                    if j == 501 then
+                        modifiedquery = modifiedquery .. lines[linenumber] .. ")"
+                        linenumber = linenumber + 1
+                        break
+                    end
+                    modifiedquery = modifiedquery .. lines[linenumber] .. ", "
                     linenumber = linenumber + 1
-                    break
+                    
                 end
-                modifiedquery = modifiedquery .. lines[linenumber] .. ", "
-                linenumber = linenumber + 1
-                
-            end
-            -- print("modifiedquery = " .. modifiedquery)
-            proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
-        end  
-        -- print('line[' .. k .. ']', v)
+                -- print("modifiedquery = " .. modifiedquery)
+                -- if i == 15 then
+                --     proxy.queries:append(-1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                -- else
+                --     proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                -- end
+                -- proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
+            end  
+            -- print('line[' .. k .. ']', v)
+        end
     end
 
-    return proxy.PROXY_SEND_QUERY
+    -- return proxy.PROXY_SEND_QUERY
 
 end
 
@@ -189,7 +212,12 @@ function drop_handler(query)
         modifiedquery = "drop table ciphertext_bit" .. i
 
         -- print("modifiedquery = " .. modifiedquery)
-        proxy.queries:append(2, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+        -- TODO: fix 15
+        if i == 15 then
+            proxy.queries:append(-1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+        else
+            proxy.queries:append(2, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+        end
     end            
 
     return proxy.PROXY_SEND_QUERY
@@ -208,7 +236,7 @@ function select_handler(query)
 
     for i=0,15,1
         do
-        modifiedquery = "select * from ciphertext_bit" .. i .. " where id = " .. id .. " and integerorder = " .. integerorder 
+        modifiedquery = "select * from ciphertext_bit" .. i .. " where fpnumber = " .. id .. " and integerorder = " .. integerorder 
 
         -- print("modifiedquery = " .. modifiedquery)
         proxy.queries:append((i+5), string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true})
@@ -282,7 +310,12 @@ function read_query(packet)
                     end
                 end
                 -- print("modifiedquery = " .. modifiedquery)
-                proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
+                -- TODO: fix 15
+                if i == 15 then
+                    proxy.queries:append(-1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                else
+                    proxy.queries:append(1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                end
             end            
 
             return proxy.PROXY_SEND_QUERY
@@ -339,9 +372,14 @@ function read_query_result(inj)
     if inj.id <= 4 then
         print("inj.id = " .. inj.id)
         print("this was not a select query")
-        proxy.response.type = proxy.MYSQLD_PACKET_OK
-        return proxy.PROXY_SEND_RESULT
-        -- return proxy.PROXY_IGNORE_RESULT
+        print(originalquery)
+        if inj.id == -1 then
+            proxy.response.type = proxy.MYSQLD_PACKET_OK
+            return proxy.PROXY_SEND_RESULT
+        end
+        -- proxy.response.type = proxy.MYSQLD_PACKET_OK
+        -- return proxy.PROXY_SEND_RESULT
+        return proxy.PROXY_IGNORE_RESULT
     end
     -- print("query-time: " .. (inj.query_time / 1000) .. "ms")
     -- print("response-time: " .. (inj.response_time / 1000) .. "ms")

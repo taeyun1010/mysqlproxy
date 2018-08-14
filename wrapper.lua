@@ -132,9 +132,14 @@ function insertfp_handler(query)
         if (isfirstloop == 0) then
             if v == 'end'then
                 proxy.queries:append(-1, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                print("returning proxy_send_query")
+                -- print("queue length = " .. proxy.queries.len)
                 return proxy.PROXY_SEND_QUERY
             else
+                print('appneding query with id 3')
+                -- print('modifiedquery = ' .. modifiedquery)
                 proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                -- return proxy.PROXY_SEND_QUERY
             end
         end
         isfirstloop = 0
@@ -149,6 +154,7 @@ function insertfp_handler(query)
         end
         if not (remainder == 1) then
             print('inside if not statement')
+            print('k = ' .. k)
             mylib.HOMencrypt(v)
         
             file = '/home/taeyun/Desktop/mysqlproxy/encryptedInteger.txt'
@@ -188,9 +194,13 @@ function insertfp_handler(query)
                 --     proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
                 -- end
                 -- proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery, {resultset_is_needed = true});
+                if not (i==15) then
+                    proxy.queries:append(3, string.char(proxy.COM_QUERY) .. modifiedquery , {resultset_is_needed = true});
+                end
             end  
             -- print('line[' .. k .. ']', v)
         end
+        -- print("modifiedquery = " .. modifiedquery)
     end
 
     -- return proxy.PROXY_SEND_QUERY
@@ -370,11 +380,13 @@ function read_query_result(inj)
     -- print("inj.id = " .. inj.id)
     -- if not string.starts(originalquery, "select * from ciphertext where ") then
     if inj.id <= 4 then
-        print("inj.id = " .. inj.id)
-        print("this was not a select query")
-        print(originalquery)
+        -- print("inj.id = " .. inj.id)
+        -- print("this was not a select query")
+        -- print(originalquery)
+        
         if inj.id == -1 then
             proxy.response.type = proxy.MYSQLD_PACKET_OK
+            print("returning proxy_send_result")
             return proxy.PROXY_SEND_RESULT
         end
         -- proxy.response.type = proxy.MYSQLD_PACKET_OK
